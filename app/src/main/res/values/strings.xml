@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">AirMapView Sample</string>
+    <string name="title_activity_maps"> Sample </string>
+
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
+</resources>
