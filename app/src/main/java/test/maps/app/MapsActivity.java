@@ -10,8 +10,6 @@ import com.google.android.gms.maps.MapFragment;
 
 import android.location.Location;
 import android.util.Log;
-import android.widget.Button;
-import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
@@ -47,8 +45,8 @@ public class MapsActivity extends Activity implements ConnectionCallbacks,
 
     // Location updates intervals in sec
     private static int UPDATE_INTERVAL = 10000; // 10 sec
-    private static int FATEST_INTERVAL = 1000; // 5 sec
-    private static int DISPLACEMENT = 1; // 10 meters
+    private static int FATEST_INTERVAL = 5000; // 5 sec
+    private static int DISPLACEMENT = 10; // 10 meters
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -132,7 +130,7 @@ public class MapsActivity extends Activity implements ConnectionCallbacks,
             googleMap.addMarker(marker);
             Log.v(TAG, latitude + ", " + longitude);
             CameraPosition cameraPosition = new CameraPosition.Builder().target(
-                    new LatLng(latitude, longitude)).zoom(20).build();
+                    new LatLng(latitude, longitude)).zoom(16).build();
 
             googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
 
