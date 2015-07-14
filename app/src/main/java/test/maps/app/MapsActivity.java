@@ -1,7 +1,10 @@
 package test.maps.app;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.ResultReceiver;
 import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -13,49 +16,35 @@ import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.GoogleApiClient.ConnectionCallbacks;
-import com.google.android.gms.common.api.GoogleApiClient.OnConnectionFailedListener;
-import com.google.android.gms.location.LocationListener;
-import com.google.android.gms.location.LocationRequest;
-import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-public class MapsActivity extends Activity implements ConnectionCallbacks,
-        OnConnectionFailedListener, LocationListener {
+import test.maps.app.service.RidelyLocationService;
+
+public class MapsActivity extends Activity {
 
     // LogCat tag
     private static final String TAG = MapsActivity.class.getSimpleName();
 
     private final static int PLAY_SERVICES_RESOLUTION_REQUEST = 1000;
 
-    private Location mLastLocation;
 
-    // Google client to interact with Google API
-    private GoogleApiClient mGoogleApiClient;
     private GoogleMap googleMap;
 
-    // boolean flag to toggle periodic location updates
-    private boolean mRequestingLocationUpdates = false;
+    private MyResultReceiver resultReceiver;
 
-    private LocationRequest mLocationRequest;
-
-    // Location updates intervals in sec
-    private static int UPDATE_INTERVAL = 10000; // 10 sec
-    private static int FATEST_INTERVAL = 5000; // 5 sec
-    private static int DISPLACEMENT = 10; // 10 meters
+    Intent intent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        resultReceiver = new MyResultReceiver(null);
         try {
             // Loading map
-            initilizeMap();
+            initilizeMapAndStartService();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -66,7 +55,7 @@ public class MapsActivity extends Activity implements ConnectionCallbacks,
     /**
      * function to load map. If map is not created it will create it for you
      * */
-    private void initilizeMap() {
+    private void initilizeMapAndStartService() {
         if (googleMap == null) {
             googleMap = ((MapFragment) getFragmentManager().findFragmentById(
                     R.id.map)).getMap();
@@ -74,12 +63,10 @@ public class MapsActivity extends Activity implements ConnectionCallbacks,
             // First we need to check availability of play services
             if (checkPlayServices()) {
 
-                // Building the GoogleApi client
-                buildGoogleApiClient();
-
-                createLocationRequest();
-
-                startLocationUpdates();
+                // Launch Service only if device is compatible
+                intent = new Intent(this, RidelyLocationService.class);
+                intent.putExtra("receiver", resultReceiver);
+                startService(intent);
 
             }
 
@@ -95,69 +82,33 @@ public class MapsActivity extends Activity implements ConnectionCallbacks,
     @Override
     protected void onStart() {
         super.onStart();
-        if (mGoogleApiClient != null) {
-            mGoogleApiClient.connect();
-        }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        if (mGoogleApiClient.isConnected()) {
-            mGoogleApiClient.disconnect();
-        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        stopLocationUpdates();
     }
 
     /**
      * Method to display the location on UI
      * */
-    private void displayLocation() {
+    private void plotOnMap(Double latitude, Double longitude) {
         googleMap.clear();
-        mLastLocation = LocationServices.FusedLocationApi
-                .getLastLocation(mGoogleApiClient);
+        MarkerOptions marker = new MarkerOptions().position(new LatLng(latitude, longitude)).title("Hello!");
+        marker.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE));
+        googleMap.addMarker(marker);
+        Log.v(TAG, latitude + ", " + longitude);
+        CameraPosition cameraPosition = new CameraPosition.Builder().target(
+                new LatLng(latitude, longitude)).zoom(16).build();
 
-        if (mLastLocation != null) {
-            double latitude = mLastLocation.getLatitude();
-            double longitude = mLastLocation.getLongitude();
-            MarkerOptions marker = new MarkerOptions().position(new LatLng(latitude, longitude)).title("Hello!");
-            marker.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE));
-            googleMap.addMarker(marker);
-            Log.v(TAG, latitude + ", " + longitude);
-            CameraPosition cameraPosition = new CameraPosition.Builder().target(
-                    new LatLng(latitude, longitude)).zoom(16).build();
-
-            googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
-
-        }
+        googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
     }
 
-
-    /**
-     * Creating google api client object
-     * */
-    protected synchronized void buildGoogleApiClient() {
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .addApi(LocationServices.API).build();
-    }
-
-    /**
-     * Creating location request object
-     * */
-    protected void createLocationRequest() {
-        mLocationRequest = new LocationRequest();
-        mLocationRequest.setInterval(UPDATE_INTERVAL);
-        mLocationRequest.setFastestInterval(FATEST_INTERVAL);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        mLocationRequest.setSmallestDisplacement(DISPLACEMENT);
-    }
 
     /**
      * Method to verify google play services on the device
@@ -180,59 +131,37 @@ public class MapsActivity extends Activity implements ConnectionCallbacks,
         return true;
     }
 
-    /**
-     * Starting the location updates
-     * */
-    protected void startLocationUpdates() {
-        if (mGoogleApiClient.isConnected()) {
-            LocationServices.FusedLocationApi.requestLocationUpdates(
-                    mGoogleApiClient, mLocationRequest, this);
+    class UpdateUI implements Runnable
+    {
+        Double latitude;
+        Double longitude;
+
+        public UpdateUI(Double latitude, Double longitude)
+        {
+            this.latitude = latitude;
+            this.longitude = longitude;
+        }
+        public void run() {
+            //plot point map
+            plotOnMap(latitude, longitude);
         }
     }
 
-    /**
-     * Stopping location updates
-     */
-    protected void stopLocationUpdates() {
-        if (mGoogleApiClient.isConnected()) {
-            LocationServices.FusedLocationApi.removeLocationUpdates(
-                    mGoogleApiClient, this);
+    class MyResultReceiver extends ResultReceiver
+    {
+        public MyResultReceiver(Handler handler) {
+            super(handler);
+        }
+
+        @Override
+        protected void onReceiveResult(int resultCode, Bundle resultData) {
+
+            if(resultCode == 100){
+                runOnUiThread(new UpdateUI(resultData.getDouble("latitude"), resultData.getDouble("longitude")));
+            }
+            else{
+                //runOnUiThread(new UpdateUI("Result Received "+resultCode));
+            }
         }
     }
-
-    /**
-     * Google api callback methods
-     */
-    @Override
-    public void onConnectionFailed(ConnectionResult result) {
-        Log.i(TAG, "Connection failed: ConnectionResult.getErrorCode() = "
-                + result.getErrorCode());
-    }
-
-    @Override
-    public void onConnected(Bundle arg0) {
-
-        // Once connected with google api, get the location
-        displayLocation();
-
-        startLocationUpdates();
-    }
-
-    @Override
-    public void onConnectionSuspended(int arg0) {
-        mGoogleApiClient.connect();
-    }
-
-    @Override
-    public void onLocationChanged(Location location) {
-        // Assign the new location
-        mLastLocation = location;
-
-        Toast.makeText(getApplicationContext(), "Location changed!",
-                Toast.LENGTH_SHORT).show();
-
-        // Displaying the new location on UI
-        displayLocation();
-    }
-
 }
