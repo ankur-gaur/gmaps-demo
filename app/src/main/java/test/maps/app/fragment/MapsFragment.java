@@ -1,17 +1,18 @@
-package test.maps.app;
+package test.maps.app.fragment;
 
-import android.app.Activity;
+import android.app.Fragment;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.ResultReceiver;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapFragment;
 
-import android.location.Location;
 import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -21,14 +22,16 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import test.maps.app.MyActivity;
+import test.maps.app.R;
 import test.maps.app.receiver.MyResultReceiver;
 import test.maps.app.receiver.MyResultReceiver.Receiver;
 import test.maps.app.service.RidelyLocationService;
 
-public class MapsActivity extends Activity implements Receiver {
+public class MapsFragment extends Fragment implements Receiver {
 
     // LogCat tag
-    private static final String TAG = MapsActivity.class.getSimpleName();
+    private static final String TAG = MyActivity.class.getSimpleName();
 
     private final static int PLAY_SERVICES_RESOLUTION_REQUEST = 1000;
 
@@ -39,10 +42,13 @@ public class MapsActivity extends Activity implements Receiver {
 
     Intent intent;
 
+    public MapsFragment(){}
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
+
+        View rootView = inflater.inflate(R.layout.activity_main, container, false);
         resultReceiver = new MyResultReceiver(new Handler());
         resultReceiver.setReceiver(this);
         try {
@@ -53,6 +59,7 @@ public class MapsActivity extends Activity implements Receiver {
             e.printStackTrace();
         }
 
+        return rootView;
     }
 
     /**
@@ -67,15 +74,15 @@ public class MapsActivity extends Activity implements Receiver {
             if (checkPlayServices()) {
 
                 // Launch Service only if device is compatible
-                intent = new Intent(this, RidelyLocationService.class);
+                intent = new Intent(getActivity().getApplicationContext(), RidelyLocationService.class);
                 intent.putExtra("receiver", resultReceiver);
-                startService(intent);
+                getActivity().startService(intent);
 
             }
 
             // check if map is created successfully or not
             if (googleMap == null) {
-                Toast.makeText(getApplicationContext(),
+                Toast.makeText(getActivity().getApplicationContext(),
                         "Sorry! unable to create maps", Toast.LENGTH_SHORT)
                         .show();
             }
@@ -83,23 +90,23 @@ public class MapsActivity extends Activity implements Receiver {
     }
 
     @Override
-    protected void onStart() {
+    public void onStart() {
         super.onStart();
     }
 
     @Override
-    protected void onStop() {
+    public void onStop() {
         super.onStop();
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         super.onPause();
         resultReceiver.setReceiver(null);
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         resultReceiver.setReceiver(this);
     }
@@ -124,16 +131,16 @@ public class MapsActivity extends Activity implements Receiver {
      * */
     private boolean checkPlayServices() {
         int resultCode = GooglePlayServicesUtil
-                .isGooglePlayServicesAvailable(this);
+                .isGooglePlayServicesAvailable(getActivity());
         if (resultCode != ConnectionResult.SUCCESS) {
             if (GooglePlayServicesUtil.isUserRecoverableError(resultCode)) {
-                GooglePlayServicesUtil.getErrorDialog(resultCode, this,
+                GooglePlayServicesUtil.getErrorDialog(resultCode, getActivity(),
                         PLAY_SERVICES_RESOLUTION_REQUEST).show();
             } else {
-                Toast.makeText(getApplicationContext(),
+                Toast.makeText(getActivity().getApplicationContext(),
                         "This device is not supported.", Toast.LENGTH_LONG)
                         .show();
-                finish();
+                getActivity().finish();
             }
             return false;
         }
@@ -159,7 +166,7 @@ public class MapsActivity extends Activity implements Receiver {
     @Override
     public void onReceiveResult(int resultCode, Bundle resultData) {
         if(resultCode == 100){
-            runOnUiThread(new UpdateUI(resultData.getDouble("latitude"), resultData.getDouble("longitude")));
+            getActivity().runOnUiThread(new UpdateUI(resultData.getDouble("latitude"), resultData.getDouble("longitude")));
         }
     }
 }
