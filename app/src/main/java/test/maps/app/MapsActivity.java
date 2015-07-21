@@ -21,9 +21,11 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import test.maps.app.receiver.MyResultReceiver;
+import test.maps.app.receiver.MyResultReceiver.Receiver;
 import test.maps.app.service.RidelyLocationService;
 
-public class MapsActivity extends Activity {
+public class MapsActivity extends Activity implements Receiver {
 
     // LogCat tag
     private static final String TAG = MapsActivity.class.getSimpleName();
@@ -33,7 +35,7 @@ public class MapsActivity extends Activity {
 
     private GoogleMap googleMap;
 
-    private MyResultReceiver resultReceiver;
+    public MyResultReceiver resultReceiver;
 
     Intent intent;
 
@@ -41,7 +43,8 @@ public class MapsActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        resultReceiver = new MyResultReceiver(null);
+        resultReceiver = new MyResultReceiver(new Handler());
+        resultReceiver.setReceiver(this);
         try {
             // Loading map
             initilizeMapAndStartService();
@@ -92,15 +95,21 @@ public class MapsActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        resultReceiver.setReceiver(null);
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        resultReceiver.setReceiver(this);
+    }
     /**
      * Method to display the location on UI
      * */
     private void plotOnMap(Double latitude, Double longitude) {
         googleMap.clear();
         MarkerOptions marker = new MarkerOptions().position(new LatLng(latitude, longitude)).title("Hello!");
-        marker.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE));
+        marker.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
         googleMap.addMarker(marker);
         Log.v(TAG, latitude + ", " + longitude);
         CameraPosition cameraPosition = new CameraPosition.Builder().target(
@@ -147,21 +156,10 @@ public class MapsActivity extends Activity {
         }
     }
 
-    class MyResultReceiver extends ResultReceiver
-    {
-        public MyResultReceiver(Handler handler) {
-            super(handler);
-        }
-
-        @Override
-        protected void onReceiveResult(int resultCode, Bundle resultData) {
-
-            if(resultCode == 100){
-                runOnUiThread(new UpdateUI(resultData.getDouble("latitude"), resultData.getDouble("longitude")));
-            }
-            else{
-                //runOnUiThread(new UpdateUI("Result Received "+resultCode));
-            }
+    @Override
+    public void onReceiveResult(int resultCode, Bundle resultData) {
+        if(resultCode == 100){
+            runOnUiThread(new UpdateUI(resultData.getDouble("latitude"), resultData.getDouble("longitude")));
         }
     }
 }
